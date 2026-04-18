@@ -1,268 +1,130 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="HeapTruffle — AI-Assisted Browser Memory Forensics & Client-Side Attack Surface Analysis Platform for authorized web security research.">
-    <title>HeapTruffle — AI-Assisted Browser Memory Forensics Platform</title>
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <!-- Unicons -->
-    <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.8/css/line.css">
-    <!-- Marked.js for Markdown rendering -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HeapTruffle — Login</title>
+    <meta name="description" content="AI-Assisted Browser Memory Forensics Platform — Secure Login" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://unicons.iconscout.com/release/v4.0.0/css/line.css" rel="stylesheet" />
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+        :root{
+            --bg:#080d1a;--surface:rgba(13,21,38,0.75);--glass-border:rgba(255,255,255,0.08);
+            --purple:#8b5cf6;--pink:#ec4899;--text:#e8edf8;--muted:#7a8caa;--dim:#4a5a73;
+        }
+        body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);
+            min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+        .bg-glow{position:fixed;pointer-events:none;border-radius:50%;filter:blur(120px);opacity:0.18;}
+        .glow-1{width:600px;height:600px;background:var(--purple);top:-150px;left:-200px;}
+        .glow-2{width:500px;height:500px;background:var(--pink);bottom:-100px;right:-150px;}
+        .login-card{
+            position:relative;z-index:10;width:100%;max-width:420px;
+            background:var(--surface);backdrop-filter:blur(24px);
+            border:1px solid var(--glass-border);border-radius:24px;
+            padding:2.5rem 2rem;box-shadow:0 24px 60px rgba(0,0,0,0.5);
+        }
+        .brand{text-align:center;margin-bottom:2rem;}
+        .brand-logo{font-size:2rem;font-weight:800;letter-spacing:-0.5px;}
+        .brand-logo span{background:linear-gradient(135deg,var(--purple),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+        .brand-sub{font-size:0.78rem;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:0.1em;}
+        .form-group{margin-bottom:1.1rem;}
+        label{display:block;font-size:0.8rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.5rem;}
+        .input-wrap{position:relative;}
+        .input-wrap i{position:absolute;left:1rem;top:50%;transform:translateY(-50%);color:var(--dim);font-size:1.1rem;}
+        input{width:100%;background:rgba(8,13,26,0.6);border:1px solid var(--glass-border);
+            border-radius:12px;padding:0.8rem 1rem 0.8rem 2.8rem;
+            color:var(--text);font-family:inherit;font-size:0.95rem;outline:none;
+            transition:border-color 0.2s;}
+        input:focus{border-color:var(--purple);}
+        input::placeholder{color:var(--dim);}
+        .btn-login{
+            width:100%;padding:0.9rem;border:none;border-radius:12px;
+            background:linear-gradient(135deg,var(--purple),var(--pink));
+            color:#fff;font-family:inherit;font-size:1rem;font-weight:700;
+            cursor:pointer;margin-top:0.5rem;letter-spacing:0.02em;
+            transition:opacity 0.2s,transform 0.2s;
+        }
+        .btn-login:hover{opacity:0.9;transform:translateY(-1px);}
+        .btn-login:active{transform:translateY(0);}
+        .btn-login:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+        .error-msg{background:rgba(255,59,48,0.12);border:1px solid rgba(255,59,48,0.3);
+            border-radius:10px;padding:0.7rem 1rem;font-size:0.85rem;color:#ff6b6b;
+            margin-bottom:1rem;display:none;}
+        .error-msg.show{display:block;}
+        .hint{text-align:center;font-size:0.78rem;color:var(--dim);margin-top:1.2rem;}
+        .hint span{color:var(--purple);font-weight:600;}
+        .spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);
+            border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px;}
+        @keyframes spin{to{transform:rotate(360deg);}}
+    </style>
 </head>
 <body>
-    <!-- Animated Background -->
-    <div class="blob-c">
-        <div class="blob blob-1"></div>
-        <div class="blob blob-2"></div>
-        <div class="blob blob-3"></div>
-    </div>
+    <div class="bg-glow glow-1"></div>
+    <div class="bg-glow glow-2"></div>
 
-    <!-- ==================== SIDEBAR ==================== -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="sidebar-brand">
-                <h1 class="sidebar-logo">Heap<span class="accent">Truffle</span></h1>
-                <p class="sidebar-tagline">Memory Forensics</p>
-            </div>
-            <button class="menu-close-btn" id="menu-close-btn" title="Close sidebar">
-                <i class="uil uil-times"></i>
-            </button>
+    <div class="login-card">
+        <div class="brand">
+            <div class="brand-logo">Heap<span>Truffle</span></div>
+            <div class="brand-sub">Memory Forensics Platform</div>
         </div>
 
-        <nav class="sidebar-nav">
-            <a href="#" class="nav-item active" data-view="scan" id="nav-scan">
-                <i class="uil uil-search-alt"></i>
-                <span>New Scan</span>
-            </a>
-            <a href="#" class="nav-item" data-view="history" id="nav-history">
-                <i class="uil uil-history"></i>
-                <span>Scan History</span>
-            </a>
-            <a href="#" class="nav-item" data-view="audit" id="nav-audit">
-                <i class="uil uil-file-shield-alt"></i>
-                <span>Audit Logs</span>
-            </a>
-        </nav>
+        <div class="error-msg" id="error-msg"></div>
 
-        <div class="sidebar-footer">
-            <div class="ai-status-badge" id="ai-status-badge">
-                <div class="ai-status-dot" id="ai-dot"></div>
-                <span id="ai-status-text">Checking AI...</span>
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">Username or Email</label>
+                <div class="input-wrap">
+                    <i class="uil uil-user"></i>
+                    <input type="text" id="username" placeholder="admin" autocomplete="username" required />
+                </div>
             </div>
-            <p class="sidebar-version">v2.0.0 — Platform Edition</p>
-        </div>
-    </aside>
-
-    <!-- ==================== MAIN CONTENT ==================== -->
-    <!-- Sidebar overlay for mobile -->
-    <div class="sidebar-overlay" id="sidebar-overlay"></div>
-
-    <!-- Top bar with menu toggle -->
-    <div class="topbar" id="topbar">
-        <button class="menu-toggle-btn" id="menu-toggle-btn" title="Toggle sidebar">
-            <i class="uil uil-bars"></i>
-        </button>
-        <span class="topbar-title">Heap<span class="accent">Truffle</span></span>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="input-wrap">
+                    <i class="uil uil-lock"></i>
+                    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" required />
+                </div>
+            </div>
+            <button type="submit" class="btn-login" id="login-btn">Sign In</button>
+        </form>
+        <p class="hint">Default: <span>admin</span> / <span>admin@123</span></p>
     </div>
 
-    <main class="main-content" id="main-content">
+    <script>
+        // If already logged in, redirect
+        if (localStorage.getItem('ht_token')) window.location.href = '/app.html';
 
-        <!-- ===== VIEW: NEW SCAN ===== -->
-        <section class="view active" id="view-scan">
-            <div class="view-header">
-                <h2 class="view-title">New Forensic Scan</h2>
-                <p class="view-subtitle">Capture and analyze client-side memory artifacts from a target web application.</p>
-            </div>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('login-btn');
+            const errEl = document.getElementById('error-msg');
+            errEl.classList.remove('show');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>Signing in...';
 
-            <!-- Scan Form -->
-            <div class="glass-card scan-card">
-                <div class="scan-card-inner">
-                    <div class="scan-icon-wrap">
-                        <i class="uil uil-microscope"></i>
-                    </div>
-                    <div class="scan-form-wrap">
-                        <form id="scan-form">
-                            <label class="form-label" for="url-input">Target URL</label>
-                            <div class="input-group" id="url-input-group">
-                                <i class="uil uil-globe icon-globe"></i>
-                                <input type="text" id="url-input" autocomplete="off" placeholder="https://example.com" required>
-                            </div>
-                            <p class="form-hint"><i class="uil uil-info-circle"></i> Only scan domains you own or have explicit written authorization to test.</p>
-                            <button type="submit" id="scan-btn" class="btn btn-primary btn-lg">
-                                <span class="btn-text"><i class="uil uil-play-circle"></i> Start Forensic Scan</span>
-                                <span class="loader hidden"></span>
-                            </button>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- Status Bar -->
-                <div class="scan-status hidden" id="scan-status">
-                    <div class="status-steps">
-                        <div class="step active" id="step-browser"><i class="uil uil-browser"></i><span>Launching Browser</span></div>
-                        <div class="step-connector"></div>
-                        <div class="step" id="step-capture"><i class="uil uil-camera"></i><span>Capturing Heap</span></div>
-                        <div class="step-connector"></div>
-                        <div class="step" id="step-analyze"><i class="uil uil-analytics"></i><span>Analyzing</span></div>
-                        <div class="step-connector"></div>
-                        <div class="step" id="step-ai"><i class="uil uil-robot"></i><span>AI Report</span></div>
-                    </div>
-                </div>
-
-                <!-- Error -->
-                <div id="error-message" class="error-alert hidden">
-                    <i class="uil uil-exclamation-triangle"></i>
-                    <span id="error-text"></span>
-                </div>
-            </div>
-
-            <!-- ===== RESULTS PANEL ===== -->
-            <div id="results-section" class="hidden">
-
-                <!-- Stats Row -->
-                <div class="stats-row" id="stats-row">
-                    <div class="stat-card stat-critical">
-                        <div class="stat-icon"><i class="uil uil-fire"></i></div>
-                        <div class="stat-body">
-                            <div class="stat-number" id="stat-critical">0</div>
-                            <div class="stat-label">Critical</div>
-                        </div>
-                    </div>
-                    <div class="stat-card stat-high">
-                        <div class="stat-icon"><i class="uil uil-shield-slash"></i></div>
-                        <div class="stat-body">
-                            <div class="stat-number" id="stat-high">0</div>
-                            <div class="stat-label">High</div>
-                        </div>
-                    </div>
-                    <div class="stat-card stat-medium">
-                        <div class="stat-icon"><i class="uil uil-exclamation-octagon"></i></div>
-                        <div class="stat-body">
-                            <div class="stat-number" id="stat-medium">0</div>
-                            <div class="stat-label">Medium</div>
-                        </div>
-                    </div>
-                    <div class="stat-card stat-low">
-                        <div class="stat-icon"><i class="uil uil-info-circle"></i></div>
-                        <div class="stat-body">
-                            <div class="stat-number" id="stat-low">0</div>
-                            <div class="stat-label">Low</div>
-                        </div>
-                    </div>
-                    <div class="stat-card stat-score">
-                        <div class="stat-icon"><i class="uil uil-chart-bar"></i></div>
-                        <div class="stat-body">
-                            <div class="stat-number" id="stat-score">0</div>
-                            <div class="stat-label">Risk Score</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tabs -->
-                <div class="tab-bar">
-                    <button class="tab-btn active" data-tab="findings" id="tab-findings">
-                        <i class="uil uil-list-ul"></i> Findings
-                        <span class="tab-badge" id="findings-badge">0</span>
-                    </button>
-                    <button class="tab-btn" data-tab="ai-report" id="tab-ai-report">
-                        <i class="uil uil-robot"></i> AI Report
-                    </button>
-                    <button class="tab-btn" data-tab="runtime" id="tab-runtime">
-                        <i class="uil uil-network-chart"></i> Runtime Artifacts
-                    </button>
-                </div>
-
-                <!-- Tab: Findings -->
-                <div class="tab-content active" id="tab-content-findings">
-                    <div class="glass-card list-card">
-                        <div class="findings-toolbar">
-                            <div class="search-wrap">
-                                <i class="uil uil-search"></i>
-                                <input type="text" id="filter-input" placeholder="Search findings...">
-                            </div>
-                            <div class="filter-pills" id="severity-filters">
-                                <button class="pill active" data-sev="all">All</button>
-                                <button class="pill pill-critical" data-sev="critical">Critical</button>
-                                <button class="pill pill-high" data-sev="high">High</button>
-                                <button class="pill pill-medium" data-sev="medium">Medium</button>
-                                <button class="pill pill-low" data-sev="low">Low</button>
-                            </div>
-                            <button class="btn btn-ghost" id="copy-all-btn">
-                                <i class="uil uil-copy"></i> Copy All
-                            </button>
-                        </div>
-                        <div class="findings-list" id="findings-list"></div>
-                    </div>
-                </div>
-
-                <!-- Tab: AI Report -->
-                <div class="tab-content hidden" id="tab-content-ai-report">
-                    <div class="glass-card report-card">
-                        <div class="report-header">
-                            <i class="uil uil-robot report-icon"></i>
-                            <div>
-                                <h3>AI Security Intelligence Report</h3>
-                                <p class="text-muted">Generated by Gemini AI — Powered by heap memory forensic analysis</p>
-                            </div>
-                        </div>
-                        <div class="report-body" id="ai-report-body">
-                            <!-- Markdown rendered here -->
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tab: Runtime -->
-                <div class="tab-content hidden" id="tab-content-runtime">
-                    <div class="glass-card">
-                        <h3 class="section-title"><i class="uil uil-network-chart"></i> Runtime Browser Artifacts</h3>
-                        <div class="runtime-grid" id="runtime-grid">
-                            <!-- Populated by JS -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ===== VIEW: SCAN HISTORY ===== -->
-        <section class="view hidden" id="view-history">
-            <div class="view-header">
-                <h2 class="view-title">Scan History</h2>
-                <p class="view-subtitle">All previous forensic scans and their results.</p>
-            </div>
-            <div class="glass-card">
-                <div id="history-list" class="history-list">
-                    <div class="empty-state">
-                        <i class="uil uil-history"></i>
-                        <p>Loading scan history...</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ===== VIEW: AUDIT LOGS ===== -->
-        <section class="view hidden" id="view-audit">
-            <div class="view-header">
-                <h2 class="view-title">Audit Logs</h2>
-                <p class="view-subtitle">Every action on this platform is tracked and logged.</p>
-            </div>
-            <div class="glass-card">
-                <div id="audit-list" class="audit-list">
-                    <div class="empty-state">
-                        <i class="uil uil-file-shield-alt"></i>
-                        <p>Loading audit logs...</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-    </main>
-
-    <script src="app.js"></script>
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('username').value.trim(),
+                        password: document.getElementById('password').value,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Login failed.');
+                localStorage.setItem('ht_token', data.token);
+                localStorage.setItem('ht_user', JSON.stringify(data.user));
+                window.location.href = '/app.html';
+            } catch (err) {
+                errEl.textContent = err.message;
+                errEl.classList.add('show');
+                btn.disabled = false;
+                btn.innerHTML = 'Sign In';
+            }
+        });
+    </script>
 </body>
 </html>

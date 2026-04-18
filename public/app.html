@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HeapTruffle — Platform</title>
+    <meta name="description" content="AI-Assisted Browser Memory Forensics & Client-Side Attack Surface Analysis" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <link href="https://unicons.iconscout.com/release/v4.0.0/css/line.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <!-- ══════════════════════ BACKGROUND ══════════════════════ -->
+    <div class="bg-orbs" aria-hidden="true">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <!-- ══════════════════════ TOPBAR ══════════════════════════ -->
+    <div class="topbar" id="topbar">
+        <button class="menu-toggle-btn" id="menu-toggle-btn"><i class="uil uil-bars"></i></button>
+        <span class="topbar-title">Heap<span class="accent">Truffle</span></span>
+        <div class="topbar-right">
+            <span class="topbar-ai" id="topbar-ai"></span>
+            <div class="user-pill" id="user-pill">
+                <i class="uil uil-user-circle"></i>
+                <span id="user-name-badge">...</span>
+                <span class="role-badge" id="role-badge">—</span>
+            </div>
+            <button class="icon-btn" id="logout-btn" title="Logout"><i class="uil uil-sign-out-alt"></i></button>
+        </div>
+    </div>
+
+    <!-- ══════════════════════ SIDEBAR ════════════════════════ -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <h1 class="sidebar-logo">Heap<span class="accent">Truffle</span></h1>
+                <p class="sidebar-tagline">Memory Forensics</p>
+            </div>
+            <button class="menu-close-btn" id="menu-close-btn"><i class="uil uil-times"></i></button>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">Analysis</div>
+            <button class="nav-item active" data-view="dashboard" id="nav-dashboard">
+                <i class="uil uil-chart-bar"></i><span>Dashboard</span>
+            </button>
+            <button class="nav-item" data-view="scan" id="nav-scan">
+                <i class="uil uil-search-alt"></i><span>New Scan</span>
+            </button>
+            <button class="nav-item" data-view="history" id="nav-history">
+                <i class="uil uil-history"></i><span>Scan History</span>
+            </button>
+            <button class="nav-item" data-view="compare" id="nav-compare">
+                <i class="uil uil-layers-alt"></i><span>Compare Scans</span>
+            </button>
+
+            <div class="nav-section-label">Management</div>
+            <button class="nav-item" data-view="targets" id="nav-targets">
+                <i class="uil uil-shield-check"></i><span>Targets</span>
+            </button>
+            <button class="nav-item admin-only" data-view="users" id="nav-users">
+                <i class="uil uil-users-alt"></i><span>Users</span>
+            </button>
+            <button class="nav-item admin-only" data-view="audit" id="nav-audit">
+                <i class="uil uil-file-alt"></i><span>Audit Logs</span>
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="ai-status-pill" id="ai-status-pill">
+                <span class="ai-dot" id="ai-dot"></span>
+                <span id="ai-status-text">Checking AI...</span>
+            </div>
+            <div class="sidebar-version">v3.0.0 — Platform Edition</div>
+        </div>
+    </aside>
+
+    <!-- ══════════════════════ OVERLAY ════════════════════════ -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- ══════════════════════ MAIN ═══════════════════════════ -->
+    <main class="main-content" id="main-content">
+
+        <!-- ══ VIEW: DASHBOARD ══ -->
+        <section class="view" id="view-dashboard">
+            <div class="view-header">
+                <h2 class="view-title"><i class="uil uil-chart-bar"></i> Analyst Dashboard</h2>
+                <p class="view-subtitle">Platform-wide forensic intelligence overview.</p>
+            </div>
+            <div class="dash-stats-row" id="dash-stats-row">
+                <div class="dash-stat-card">
+                    <div class="ds-icon"><i class="uil uil-search"></i></div>
+                    <div class="ds-body"><div class="ds-num" id="ds-scans">—</div><div class="ds-lbl">Total Scans</div></div>
+                </div>
+                <div class="dash-stat-card">
+                    <div class="ds-icon" style="color:#ff9500"><i class="uil uil-bug"></i></div>
+                    <div class="ds-body"><div class="ds-num" id="ds-findings">—</div><div class="ds-lbl">Total Findings</div></div>
+                </div>
+                <div class="dash-stat-card">
+                    <div class="ds-icon" style="color:#ff3b30"><i class="uil uil-fire"></i></div>
+                    <div class="ds-body"><div class="ds-num" id="ds-critical">—</div><div class="ds-lbl">Critical Items</div></div>
+                </div>
+                <div class="dash-stat-card">
+                    <div class="ds-icon" style="color:#8b5cf6"><i class="uil uil-shield-slash"></i></div>
+                    <div class="ds-body"><div class="ds-num" id="ds-high">—</div><div class="ds-lbl">High Severity</div></div>
+                </div>
+            </div>
+            <div class="charts-row">
+                <div class="glass-card chart-card">
+                    <div class="card-title">Findings by Severity</div>
+                    <canvas id="chart-sev" height="220"></canvas>
+                </div>
+                <div class="glass-card chart-card">
+                    <div class="card-title">Scan Activity (14 days)</div>
+                    <canvas id="chart-trend" height="220"></canvas>
+                </div>
+                <div class="glass-card chart-card">
+                    <div class="card-title">Findings by Classification</div>
+                    <canvas id="chart-cat" height="220"></canvas>
+                </div>
+            </div>
+            <div class="dash-bottom-row">
+                <div class="glass-card">
+                    <div class="card-title">Recent Scans</div>
+                    <div id="dash-recent-scans" class="mini-list"></div>
+                </div>
+                <div class="glass-card">
+                    <div class="card-title">Top Risky Targets</div>
+                    <div id="dash-top-targets" class="mini-list"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══ VIEW: NEW SCAN ══ -->
+        <section class="view hidden" id="view-scan">
+            <div class="view-header">
+                <h2 class="view-title"><i class="uil uil-search-alt"></i> New Forensic Scan</h2>
+                <p class="view-subtitle">Capture and analyze client-side memory artifacts from a target web application.</p>
+            </div>
+            <div class="glass-card scan-card">
+                <div class="scan-card-inner">
+                    <div class="scan-icon-wrap"><i class="uil uil-microscope"></i></div>
+                    <div class="scan-form-wrap">
+                        <label class="form-label">TARGET URL</label>
+                        <div class="input-group">
+                            <i class="uil uil-globe"></i>
+                            <input type="url" id="url-input" class="url-input" placeholder="https://example.com" />
+                        </div>
+                        <p class="scan-hint"><i class="uil uil-info-circle"></i> Only scan domains you own or have explicit written authorization to test.</p>
+                        <button id="scan-btn" class="btn-primary scan-btn">
+                            <i class="uil uil-play-circle"></i> Start Forensic Scan
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress -->
+            <div class="glass-card scan-progress-card hidden" id="progress-card">
+                <div class="progress-header">
+                    <div class="progress-pulse"></div>
+                    <span id="progress-title">Initializing scan...</span>
+                </div>
+                <div class="progress-steps" id="progress-steps"></div>
+            </div>
+
+            <!-- Results -->
+            <div id="results-section" class="hidden">
+                <div class="stats-row" id="stats-row"></div>
+                <div class="glass-card results-card">
+                    <div class="tab-bar" id="tab-bar">
+                        <button class="tab-btn active" data-tab="findings"><i class="uil uil-list-ul"></i> Findings <span class="tab-badge" id="tab-findings-count">0</span></button>
+                        <button class="tab-btn" data-tab="ai-report"><i class="uil uil-robot"></i> AI Report</button>
+                        <button class="tab-btn" data-tab="runtime"><i class="uil uil-monitor"></i> Runtime Artifacts</button>
+                    </div>
+                    <div class="tab-content" id="tab-findings">
+                        <div class="findings-toolbar">
+                            <div class="search-wrap">
+                                <i class="uil uil-search"></i>
+                                <input type="text" id="findings-search" placeholder="Search findings..." />
+                            </div>
+                            <div class="filter-pills" id="filter-pills">
+                                <button class="pill active" data-sev="all">All</button>
+                                <button class="pill pill-critical" data-sev="critical">Critical</button>
+                                <button class="pill pill-high" data-sev="high">High</button>
+                                <button class="pill pill-medium" data-sev="medium">Medium</button>
+                                <button class="pill pill-low" data-sev="low">Low</button>
+                            </div>
+                            <button class="btn-outline" id="btn-download-pdf"><i class="uil uil-file-download"></i> PDF Report</button>
+                        </div>
+                        <div class="findings-list" id="findings-list"></div>
+                    </div>
+                    <div class="tab-content hidden" id="tab-ai-report">
+                        <div class="ai-report-wrap glass-card" id="ai-report-content"></div>
+                    </div>
+                    <div class="tab-content hidden" id="tab-runtime">
+                        <div class="runtime-grid" id="runtime-grid"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══ VIEW: SCAN HISTORY ══ -->
+        <section class="view hidden" id="view-history">
+            <div class="view-header">
+                <h2 class="view-title"><i class="uil uil-history"></i> Scan History</h2>
+                <p class="view-subtitle">All previous forensic scans and their results.</p>
+            </div>
+            <div class="glass-card">
+                <div id="history-list" class="history-list"></div>
+            </div>
+        </section>
+
+        <!-- ══ VIEW: COMPARE ══ -->
+        <section class="view hidden" id="view-compare">
+            <div class="view-header">
+                <h2 class="view-title"><i class="uil uil-layers-alt"></i> Compare Scans</h2>
+                <p class="view-subtitle">Diff two scans to track new, removed, and changed findings.</p>
+            </div>
+            <div class="glass-card">
+                <div class="compare-inputs">
+                    <div class="form-group">
+                        <label class="form-label">Scan A (Baseline)</label>
+                        <select id="compare-scan-a" class="select-input"></select>
+                    </div>
+                    <div class="compare-vs"><i class="uil uil-exchange"></i></div>
+                    <div class="form-group">
+                        <label class="form-label">Scan B (Latest)</label>
+                        <select id="compare-scan-b" class="select-input"></select>
+                    </div>
+                    <button class="btn-primary" id="btn-compare"><i class="uil uil-chart-growth"></i> Compare</button>
+                </div>
+            </div>
+            <div class="glass-card hidden" id="compare-results">
+                <div class="compare-summary" id="compare-summary"></div>
+                <div class="compare-tabs">
+                    <button class="tab-btn active" data-ctab="new">New Findings</button>
+                    <button class="tab-btn" data-ctab="removed">Removed</button>
+                    <button class="tab-btn" data-ctab="changed">Severity Changes</button>
+                </div>
+                <div id="compare-content-new" class="compare-tab-body findings-list"></div>
+                <div id="compare-content-removed" class="compare-tab-body findings-list hidden"></div>
+                <div id="compare-content-changed" class="compare-tab-body findings-list hidden"></div>
+            </div>
+        </section>
+
+        <!-- ══ VIEW: TARGETS ══ -->
+        <section class="view hidden" id="view-targets">
+            <div class="view-header">
+                <h2 class="view-title"><i class="uil uil-shield-check"></i> Authorized Targets</h2>
+                <p class="view-subtitle">Manage approved domains eligible for forensic scanning.</p>
+            </div>
+            <div class="glass-card" id="add-target-card">
+                <div class="card-title">Add Authorized Domain</div>
+                <div class="target-form">
+                    <div class="input-group">
+                        <i class="uil uil-globe"></i>
+                        <input type="text" id="target-domain" placeholder="example.com" class="url-input" />
+                    </div>
+                    <input type="text" id="target-label" placeholder="Label (optional)" class="url-input" style="padding:0.7rem 1rem;" />
+                    <input type="text" id="target-notes" placeholder="Authorization notes" class="url-input" style="padding:0.7rem 1rem;" />
+                    <button class="btn-primary" id="btn-add-target"><i class="uil uil-plus"></i> Add Target</button>
+                </div>
+            </div>
+            <div class="glass-card">
+                <div class="card-title">Authorized Domains</div>
+                <div id="targets-list" class="targets-list"></div>
+            </div>
+        </section>
+
+        <!-- ══ VIEW: USERS (Admin) ══ -->
+        <section class="view hidden" id="view-users">
+            <div class="view-header">
+                <h2 class="view-title"><i class="uil uil-users-alt"></i> User Management</h2>
+                <p class="view-subtitle">Create and manage platform users and roles.</p>
+            </div>
+            <div class="glass-card">
+                <div class="card-title">Create New User</div>
+                <div class="user-form">
+                    <input type="text" id="new-username" placeholder="Username" class="url-input" />
+                    <input type="email" id="new-email" placeholder="Email" class="url-input" />
+                    <input type="password" id="new-password" placeholder="Password" class="url-input" />
+                    <select id="new-role" class="select-input">
+                        <option value="analyst">Analyst</option>
+                        <option value="viewer">Viewer</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                    <button class="btn-primary" id="btn-create-user"><i class="uil uil-user-plus"></i> Create User</button>
+                </div>
+            </div>
+            <div class="glass-card">
+                <div class="card-title">All Users</div>
+                <div id="users-list" class="users-list"></div>
+            </div>
+        </section>
+
+        <!-- ══ VIEW: AUDIT LOGS ══ -->
+        <section class="view hidden" id="view-audit">
+            <div class="view-header">
+                <h2 class="view-title"><i class="uil uil-file-alt"></i> Audit Logs</h2>
+                <p class="view-subtitle">Every platform action is permanently tracked and logged.</p>
+            </div>
+            <div class="glass-card">
+                <div id="audit-list" class="audit-list"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ══════════════════════ FINDING MODAL ════════════════════ -->
+    <div class="modal-backdrop hidden" id="modal-backdrop">
+        <div class="modal" id="finding-modal">
+            <div class="modal-header">
+                <div>
+                    <span class="severity-badge" id="modal-sev"></span>
+                    <h3 class="modal-title" id="modal-title"></h3>
+                </div>
+                <button class="modal-close" id="modal-close"><i class="uil uil-times"></i></button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

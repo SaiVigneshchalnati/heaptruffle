@@ -1,0 +1,24 @@
+{
+    "name": "heaptruffle",
+    "version": "2.0.0",
+    "description": "AI-Assisted Browser Memory Forensics & Client-Side Attack Surface Analysis Platform",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node server.js",
+        "test": "echo \"No test runner configured yet\" && exit 0"
+    },
+    "keywords": ["cybersecurity", "heap-snapshot", "forensics", "ai", "browser-security"],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@google/generative-ai": "^0.21.0",
+        "better-sqlite3": "^9.6.0",
+        "cors": "^2.8.6",
+        "dotenv": "^16.4.7",
+        "express": "^5.2.1",
+        "heapsnapshot-parser": "^0.1.0",
+        "puppeteer": "^19.11.1",
+        "uuid": "^11.1.0"
+    }
+}

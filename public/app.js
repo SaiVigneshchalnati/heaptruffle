@@ -13,9 +13,10 @@ const API = (path, opts = {}) =>
         ...opts,
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN, ...(opts.headers || {}) },
     }).then(async r => {
-        if (r.status === 401 || r.status === 403) { logout(); throw new Error('Unauthorized'); }
+        // Only logout on 401 (expired/invalid token). 403 = permission denied — show error, don't logout.
+        if (r.status === 401) { logout(); throw new Error('Session expired. Please log in again.'); }
         const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(j.error || 'Request failed');
+        if (!r.ok) throw new Error(j.error || `Request failed (${r.status})`);
         return j;
     });
 
@@ -29,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── User badge ──────────────────────────────────────────────────────
 document.getElementById('user-name-badge').textContent = USER.username;
 document.getElementById('role-badge').textContent = USER.role;
+// Hide admin-only nav items for non-admins
 if (USER.role !== 'admin') {
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
 }

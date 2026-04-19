@@ -1,5 +1,6 @@
 /**
  * scanController.js — Full scan lifecycle, history, comparison, dashboard stats, PDF export.
+ * The scan ALWAYS completes with results — even if heap extraction fails.
  */
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db/database');
@@ -32,53 +33,100 @@ async function startScan(req, res) {
     db.prepare(`INSERT INTO audit_logs (action,user_id,detail,timestamp) VALUES (?,?,?,?)`)
       .run('SCAN_STARTED', userId, `Scan ${scanId} started for ${domain}`, createdAt);
 
-    try {
-        const { snapshotText, runtimeArtifacts } = await captureArtifacts(url);
-        const heapText = extractSnapshotText(snapshotText);
-        const { findings, stats } = analyzeArtifacts(heapText, runtimeArtifacts);
+    // ── captureArtifacts NEVER throws — it always returns a result with heapStatus ──
+    const { snapshotText, heapStatus, runtimeArtifacts } = await captureArtifacts(url);
 
-        // Persist findings with new enriched schema
-        const ins = db.prepare(`
-            INSERT INTO findings
-              (id,scan_id,raw_value,artifact_type,severity,score,confidence,category,classification,description,recommendation,source_type,page_url,found_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        `);
-        db.transaction(items => {
-            for (const f of items)
-                ins.run(uuidv4(), scanId, f.raw_value, f.artifact_type,
-                    f.risk_label || f.severity, f.final_score || f.score,
-                    f.confidence || 50, f.category, f.classification,
-                    f.description, f.recommendation, f.source_type || 'heap',
-                    url, f.found_at || createdAt);
-        })(findings);
+    // Describe what happened with the heap
+    const heapStatusMessages = {
+        success:        'Heap snapshot captured successfully.',
+        partial_load:   'Page failed to fully load; heap snapshot may be incomplete.',
+        heap_empty:     'Heap snapshot was captured but returned empty data.',
+        heap_failed:    'Heap extraction failed (CDP timeout or V8 error). Results based on network/script artifacts only.',
+        browser_failed: 'Browser failed to launch or connect. Results unavailable.',
+    };
+    const heapNote = heapStatusMessages[heapStatus] || `Heap status: ${heapStatus}`;
 
-        // AI Report
-        const aiSummary = await generateSecurityReport(domain, findings);
-        db.prepare(`INSERT INTO ai_reports (id,scan_id,summary,generated_at) VALUES (?,?,?,?)`)
-          .run(uuidv4(), scanId, aiSummary, new Date().toISOString());
+    // Extract and analyse — works fine with empty heapText (runtime artifacts still run)
+    const heapText = extractSnapshotText(snapshotText);
+    const { findings, stats } = analyzeArtifacts(heapText, runtimeArtifacts);
 
-        const completedAt = new Date().toISOString();
-        db.prepare(`UPDATE scan_jobs SET status='completed',completed_at=?,finding_count=?,risk_score=? WHERE id=?`)
-          .run(completedAt, findings.length, stats.totalScore, scanId);
-        db.prepare(`INSERT INTO audit_logs (action,user_id,detail,timestamp) VALUES (?,?,?,?)`)
-          .run('SCAN_COMPLETED', userId, `Scan ${scanId} — ${findings.length} findings, score ${stats.totalScore}`, completedAt);
-
-        return res.json({
-            scanId, domain, status: 'completed', stats, findings, aiReport: aiSummary,
-            runtimeArtifacts: {
-                networkRequestCount: runtimeArtifacts.networkRequests.length,
-                loadedScriptCount:   runtimeArtifacts.loadedScripts.length,
-                localStorageKeyCount: runtimeArtifacts.localStorageKeys.length,
-            },
+    // Add a synthetic informational finding if heap failed, so the UI shows something meaningful
+    if (heapStatus !== 'success' && heapStatus !== 'partial_load') {
+        findings.unshift({
+            id: uuidv4(),
+            scan_id: scanId,
+            raw_value: heapNote,
+            artifact_type: 'heap_extraction_status',
+            severity: 'info',
+            score: 0,
+            confidence: 100,
+            category: 'Scan Quality',
+            classification: 'Diagnostic',
+            description: `The heap snapshot could not be fully extracted for this target. Reason: ${heapNote}`,
+            recommendation: 'This may occur on heavily protected or SPA sites (e.g. x.com, Twitter). The scan still ran network, script, and localStorage analysis.',
+            source_type: 'system',
+            page_url: url,
+            found_at: createdAt,
         });
-    } catch (err) {
-        const failedAt = new Date().toISOString();
-        db.prepare(`UPDATE scan_jobs SET status='failed',completed_at=?,error=? WHERE id=?`).run(failedAt, err.message, scanId);
-        db.prepare(`INSERT INTO audit_logs (action,user_id,detail,timestamp) VALUES (?,?,?,?)`)
-          .run('SCAN_FAILED', userId, `Scan ${scanId} failed: ${err.message}`, failedAt);
-        console.error('[scanController] Scan failed:', err.message);
-        return res.status(500).json({ error: 'Scan failed: ' + err.message });
     }
+
+    // Persist findings
+    const ins = db.prepare(`
+        INSERT INTO findings
+          (id,scan_id,raw_value,artifact_type,severity,score,confidence,category,classification,description,recommendation,source_type,page_url,found_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `);
+    db.transaction(items => {
+        for (const f of items)
+            ins.run(
+                f.id || uuidv4(), scanId,
+                f.raw_value, f.artifact_type,
+                f.risk_label || f.severity,
+                f.final_score ?? f.score ?? 0,
+                f.confidence || 50,
+                f.category, f.classification,
+                f.description, f.recommendation,
+                f.source_type || 'heap',
+                url, f.found_at || createdAt
+            );
+    })(findings);
+
+    // AI Report
+    let aiSummary;
+    try {
+        aiSummary = await generateSecurityReport(domain, findings);
+    } catch (aiErr) {
+        console.warn('[scanController] AI report failed:', aiErr.message);
+        aiSummary = `## Scan Note\n${heapNote}\n\nAI report generation failed: ${aiErr.message}`;
+    }
+
+    db.prepare(`INSERT INTO ai_reports (id,scan_id,summary,generated_at) VALUES (?,?,?,?)`)
+      .run(uuidv4(), scanId, aiSummary, new Date().toISOString());
+
+    const completedAt = new Date().toISOString();
+
+    // Scan always completes — heap failure is recorded in the `error` field for transparency
+    const errorNote = heapStatus !== 'success' ? heapNote : null;
+    db.prepare(`UPDATE scan_jobs SET status='completed',completed_at=?,finding_count=?,risk_score=?,error=? WHERE id=?`)
+      .run(completedAt, findings.length, stats.totalScore, errorNote, scanId);
+    db.prepare(`INSERT INTO audit_logs (action,user_id,detail,timestamp) VALUES (?,?,?,?)`)
+      .run('SCAN_COMPLETED', userId,
+           `Scan ${scanId} — ${findings.length} findings, score ${stats.totalScore}, heapStatus: ${heapStatus}`,
+           completedAt);
+
+    return res.json({
+        scanId, domain, status: 'completed',
+        heapStatus,
+        heapNote,
+        stats,
+        findings,
+        aiReport: aiSummary,
+        runtimeArtifacts: {
+            networkRequestCount:   runtimeArtifacts.networkRequests.length,
+            loadedScriptCount:     runtimeArtifacts.loadedScripts.length,
+            localStorageKeyCount:  runtimeArtifacts.localStorageKeys.length,
+        },
+    });
 }
 
 /* ─── GET /api/scans ─────────────────────────── */
@@ -104,7 +152,7 @@ function getScanById(req, res) {
 /* ─── DELETE /api/scans/:id ──────────────────── */
 function deleteScan(req, res) {
     const scan = db.prepare(`SELECT id FROM scan_jobs WHERE id=?`).get(req.params.id);
-    if (!scan) return res.status(404).json({ error: 'Scan not found.' });
+    if (!scan) return res.status(404).json({ error: 'Scan not found.' });;
     db.prepare(`DELETE FROM scan_jobs WHERE id=?`).run(req.params.id);
     db.prepare(`INSERT INTO audit_logs (action,user_id,detail,timestamp) VALUES (?,?,?,?)`)
       .run('SCAN_DELETED', req.user?.id, `Scan ${req.params.id} deleted`, new Date().toISOString());

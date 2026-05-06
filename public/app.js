@@ -585,21 +585,65 @@ async function loadAuditLogs() {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  PDF Download
+//  PDF Download — no popup, inline button state feedback only
 // ══════════════════════════════════════════════════════════════
-window.downloadPDF = function(scanId, domain) {
-    if (!scanId) return showToast('No scan selected.', 'error');
-    showToast('Generating PDF report...');
-    const a = document.createElement('a');
-    a.href = '/api/scans/' + scanId + '/pdf';
-    a.download = `heaptruffle-${domain || 'scan'}.pdf`;
-    // Add auth header via fetch and blob
-    fetch('/api/scans/' + scanId + '/pdf', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
-        .then(r => r.blob()).then(blob => {
-            const url = URL.createObjectURL(blob);
-            a.href = url; a.click(); URL.revokeObjectURL(url);
-            showToast('PDF downloaded!');
-        }).catch(() => showToast('PDF generation failed.', 'error'));
+window.downloadPDF = async function(scanId, domain) {
+    if (!scanId) return;
+
+    // Find the clicked button: history-list btns have onclick containing scanId,
+    // the scan-results page has a dedicated #btn-download-pdf button.
+    const btn = document.querySelector(`button[onclick*="'${scanId}'"]`) ||
+                document.getElementById('btn-download-pdf');
+
+    function setBtnState(state) {
+        if (!btn) return;
+        const map = {
+            idle:       '<i class="uil uil-file-download"></i> PDF',
+            loading:    '<i class="uil uil-spinner-alt" style="display:inline-block;animation:spin 0.9s linear infinite"></i> Generating…',
+            done:       '<i class="uil uil-check-circle" style="color:#4ade80"></i> Downloaded',
+            error:      '<i class="uil uil-times-circle" style="color:#f87171"></i> Failed',
+        };
+        btn.innerHTML = map[state] || map.idle;
+        btn.disabled  = (state === 'loading');
+    }
+
+    setBtnState('loading');
+
+    try {
+        const response = await fetch('/api/scans/' + scanId + '/pdf', {
+            headers: { 'Authorization': 'Bearer ' + TOKEN }
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `Server error (${response.status})`);
+        }
+
+        const contentType = response.headers.get('Content-Type') || '';
+        if (!contentType.includes('application/pdf')) {
+            console.error('[PDF] Unexpected content type:', contentType);
+            throw new Error('Server did not return a valid PDF.');
+        }
+
+        const url = URL.createObjectURL(
+            new Blob([await response.blob()], { type: 'application/pdf' })
+        );
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `heaptruffle-${domain || 'scan'}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+        setBtnState('done');
+        setTimeout(() => setBtnState('idle'), 3000);   // reset label after 3 s
+
+    } catch (err) {
+        console.error('[PDF] Download error:', err);
+        setBtnState('error');
+        setTimeout(() => setBtnState('idle'), 4000);   // reset label after 4 s
+    }
 };
 
 // ══════════════════════════════════════════════════════════════

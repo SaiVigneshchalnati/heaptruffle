@@ -16,12 +16,6 @@ const loginLimiter = rateLimit({
     message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
 });
 
-// Scan limiter — 5 scans per 10 min per IP (prevents abuse)
-const scanLimiter = rateLimit({
-    windowMs: 10 * 60 * 1000,
-    max: 5,
-    message: { error: 'Too many scan requests. Please wait before scanning again.' },
-});
 
 // ─── Controllers ──────────────────────────────────────────────
 const { login, register, getProfile, getUsers, deleteUser, refreshToken } = require('../controllers/authController');
@@ -55,7 +49,7 @@ router.delete('/targets/:id',       requireAuth, requireRole('admin'), deleteTar
 router.patch ('/targets/:id/toggle',requireAuth, requireRole('admin'), toggleTarget);
 
 // ─── Scans ────────────────────────────────────────────────────
-router.post  ('/scan',              requireAuth, requireRole('admin','analyst'), scanLimiter, startScan);
+router.post  ('/scan',              requireAuth, requireRole('admin','analyst'), startScan);
 router.get   ('/scans',             requireAuth, getScans);
 router.get   ('/scans/compare',     requireAuth, compareScans);
 router.get   ('/scans/:id',         requireAuth, getScanById);

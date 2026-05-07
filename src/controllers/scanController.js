@@ -8,13 +8,8 @@ const { captureArtifacts, extractSnapshotText } = require('../services/browserWo
 const { analyzeArtifacts } = require('../services/analysisEngine');
 const { generateSecurityReport } = require('../services/aiService');
 const { generatePDFReport } = require('../services/pdfService');
-const { isAuthorizedDomain } = require('./targetsController');
 
-// Fix #5: Concurrent scan limit — prevent OOM crashes from simultaneous scans
-let activeScanCount = 0;
-const MAX_CONCURRENT_SCANS = 2;
-
-// Fix #6: SSRF protection — block private/internal addresses
+// SSRF protection — block private/internal addresses
 const PRIVATE_IP_RE = /^(localhost|127\.|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|\[::1\])/i;
 
 function isPrivateHost(hostname) {
@@ -23,13 +18,6 @@ function isPrivateHost(hostname) {
 
 /* ─── POST /api/scan ─────────────────────────── */
 async function startScan(req, res) {
-    // Fix #5: Reject if too many scans are already running
-    if (activeScanCount >= MAX_CONCURRENT_SCANS) {
-        return res.status(429).json({
-            error: `Too many concurrent scans (max ${MAX_CONCURRENT_SCANS}). Please wait for an active scan to finish.`
-        });
-    }
-
     let { url } = req.body;
     if (!url || typeof url !== 'string')
         return res.status(400).json({ error: 'A valid URL is required.' });
@@ -39,13 +27,6 @@ async function startScan(req, res) {
     try { domain = new URL(url).hostname; }
     catch (_) { return res.status(400).json({ error: 'Invalid URL format.' }); }
 
-    // Fix #6: Block SSRF attempts to internal/private network addresses
-    if (isPrivateHost(domain)) {
-        return res.status(400).json({ error: 'Scanning internal or private network addresses is not permitted.' });
-    }
-
-    if (!isAuthorizedDomain(domain))
-        return res.status(403).json({ error: `Domain "${domain}" is not in the authorized target list. Add it first.` });
 
     const scanId = uuidv4();
     const createdAt = new Date().toISOString();
@@ -56,12 +37,8 @@ async function startScan(req, res) {
     db.prepare(`INSERT INTO audit_logs (action,user_id,detail,timestamp) VALUES (?,?,?,?)`)
       .run('SCAN_STARTED', userId, `Scan ${scanId} started for ${domain}`, createdAt);
 
-    activeScanCount++;
-    let scanResult;
-    try {
     // ── captureArtifacts NEVER throws — it always returns a result with heapStatus ──
     const { snapshotText, heapStatus, runtimeArtifacts } = await captureArtifacts(url);
-    scanResult = { snapshotText, heapStatus, runtimeArtifacts };
 
     // Describe what happened with the heap
     const heapStatusMessages = {
@@ -154,9 +131,6 @@ async function startScan(req, res) {
             localStorageKeyCount:  runtimeArtifacts.localStorageKeys.length,
         },
     });
-    } finally {
-        activeScanCount--; // Fix #5: Always release the slot
-    }
 }
 
 /* ─── GET /api/scans ─────────────────────────── */

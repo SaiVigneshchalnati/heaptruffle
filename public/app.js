@@ -36,7 +36,7 @@ function scheduleTokenRefresh() {
                 scheduleTokenRefresh(); // schedule the next refresh
             } catch (_) { logout(); } // if refresh fails, force login
         }, expiresIn);
-    } catch (_) {} // ignore parse errors
+    } catch (_) { } // ignore parse errors
 }
 scheduleTokenRefresh();
 

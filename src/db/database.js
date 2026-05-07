@@ -98,15 +98,23 @@ db.exec(`
     );
 `);
 
-// Seed default admin user if none exists
+// Fix #17: Generate a strong random password on first boot instead of using a weak default
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const adminExists = db.prepare(`SELECT id FROM users WHERE role='admin' LIMIT 1`).get();
 if (!adminExists) {
-    const hash = bcrypt.hashSync('admin@123', 10);
+    // Generate a memorable but secure random password (12 hex chars)
+    const randomPass = crypto.randomBytes(6).toString('hex'); // e.g. "a3f9e2d1c4b5"
+    const hash = bcrypt.hashSync(randomPass, 10);
     db.prepare(`INSERT INTO users (id,username,email,password_hash,role,created_at) VALUES (?,?,?,?,?,?)`)
       .run(uuidv4(), 'admin', 'admin@heaptruffle.local', hash, 'admin', new Date().toISOString());
-    console.log('  Default admin seeded → admin / admin@123');
+    console.log('\n╔══════════════════════════════════════════════╗');
+    console.log('║  🔐 HeapTruffle — First-Boot Admin Credentials  ║');
+    console.log(`║  Username : admin                              ║`);
+    console.log(`║  Password : ${randomPass}                   ║`);
+    console.log('║  ⚠️  Save this password — it will not show again  ║');
+    console.log('╚══════════════════════════════════════════════╝\n');
 }
 
 module.exports = db;

@@ -2,7 +2,7 @@
  * analysisEngine.js — Orchestrates artifact extraction and risk scoring over heap text.
  */
 const { detectArtifacts } = require('./detectors');
-const { scoreFIndings, aggregateStats } = require('./riskScorer');
+const { scoreFindings, aggregateStats } = require('./riskScorer');
 
 /**
  * Runs the full analysis pipeline on raw heap text and runtime artifacts.
@@ -25,7 +25,7 @@ function analyzeArtifacts(heapText, runtimeArtifacts = {}) {
     const rawFindings = detectArtifacts(combinedText);
 
     // 3. Score findings
-    const scoredFindings = scoreFIndings(rawFindings);
+    const scoredFindings = scoreFindings(rawFindings);
 
     // 4. Sort by risk score descending
     scoredFindings.sort((a, b) => b.final_score - a.final_score);

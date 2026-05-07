@@ -20,6 +20,27 @@ const API = (path, opts = {}) =>
         return j;
     });
 
+// Fix #15: Auto-refresh JWT token 5 minutes before expiry
+function scheduleTokenRefresh() {
+    const token = localStorage.getItem('ht_token');
+    if (!token) return;
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const expiresIn = (payload.exp * 1000) - Date.now() - (5 * 60 * 1000); // 5 min before expiry
+        if (expiresIn <= 0) return; // already expired or about to
+        setTimeout(async () => {
+            try {
+                const data = await API('/auth/refresh', { method: 'POST' });
+                localStorage.setItem('ht_token', data.token);
+                localStorage.setItem('ht_user', JSON.stringify(data.user));
+                scheduleTokenRefresh(); // schedule the next refresh
+            } catch (_) { logout(); } // if refresh fails, force login
+        }, expiresIn);
+    } catch (_) {} // ignore parse errors
+}
+scheduleTokenRefresh();
+
+
 function logout() {
     localStorage.removeItem('ht_token'); localStorage.removeItem('ht_user');
     window.location.href = '/';
@@ -177,9 +198,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const el = document.getElementById('dash-recent-scans');
         if (!scans.length) { el.innerHTML = '<div class="empty-state"><i class="uil uil-history"></i>No scans yet</div>'; return; }
         el.innerHTML = scans.map(s => `
-        <div class="mini-item" onclick="showScanDetail('${s.id}')">
+        <div class="mini-item" onclick="showScanDetail('${escAttr(s.id)}')">
             <div>
-                <div class="mini-item-domain">${s.domain || s.target_url}</div>
+                <div class="mini-item-domain">${escHtml(s.domain || s.target_url)}</div>
                 <div class="mini-item-meta">${fmtDate(s.created_at)}</div>
             </div>
             <span class="mini-badge sev-${s.risk_score >= 85 ? 'critical' : s.risk_score >= 65 ? 'high' : 'medium'}" style="background:rgba(139,92,246,0.15);color:#8b5cf6;border:1px solid rgba(139,92,246,0.3)">
@@ -194,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
         el.innerHTML = targets.map(t => `
         <div class="mini-item">
             <div>
-                <div class="mini-item-domain">${t.domain}</div>
+                <div class="mini-item-domain">${escHtml(t.domain)}</div>
                 <div class="mini-item-meta">${t.scan_count} scan(s)</div>
             </div>
             <span class="mini-badge ${riskClass(t.max_risk)}" style="padding:2px 9px;border-radius:12px;font-size:0.65rem;font-weight:800;">
@@ -251,7 +272,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 4500);
 
         try {
-            const data = await API('/scan', { method: 'POST', body: JSON.stringify({ url }) });
+            // Fix #13: 2-minute client-side scan timeout — UI won't hang forever
+            const scanController = new AbortController();
+            const scanTimeout = setTimeout(() => {
+                scanController.abort();
+            }, 120000); // 2 minutes
+
+            let data;
+            try {
+                data = await fetch('/api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+                    body: JSON.stringify({ url }),
+                    signal: scanController.signal,
+                }).then(async r => {
+                    const j = await r.json().catch(() => ({}));
+                    if (!r.ok) throw new Error(j.error || `Scan failed (${r.status})`);
+                    return j;
+                });
+            } finally {
+                clearTimeout(scanTimeout);
+            }
             clearInterval(stepTimer);
             STEPS.forEach(s => { const el = document.getElementById(s.id); if (el) { el.classList.remove('active'); el.classList.add('done'); el.querySelector('.step-icon').innerHTML = '✓'; } });
             document.getElementById('progress-title').textContent = '✅ Scan completed!';
@@ -390,16 +431,16 @@ document.addEventListener('DOMContentLoaded', () => {
             el.innerHTML = scans.map(s => `
             <div class="history-item">
                 <div style="flex:1;min-width:120px">
-                    <div class="history-domain">${s.domain || s.target_url}</div>
+                    <div class="history-domain">${escHtml(s.domain || s.target_url)}</div>
                     <div class="history-meta">${fmtDate(s.created_at)}</div>
                 </div>
-                <span class="status-badge status-${s.status}">${s.status}</span>
+                <span class="status-badge status-${s.status}">${escHtml(s.status)}</span>
                 <span style="font-size:0.8rem;color:var(--text-muted)">${s.finding_count || 0} findings</span>
                 <span style="font-size:0.8rem;color:var(--purple);font-weight:700">Score: ${s.risk_score || 0}</span>
                 <div class="history-actions">
-                    <button class="btn-outline" onclick="loadScanDetail('${s.id}')"><i class="uil uil-eye"></i> View</button>
-                    ${s.status === 'completed' ? `<button class="btn-outline" onclick="downloadPDF('${s.id}','${s.domain}')"><i class="uil uil-file-download"></i> PDF</button>` : ''}
-                    <button class="btn-danger" onclick="confirmDelete('${s.id}')"><i class="uil uil-trash"></i></button>
+                    <button class="btn-outline" onclick="loadScanDetail('${escAttr(s.id)}')"><i class="uil uil-eye"></i> View</button>
+                    ${s.status === 'completed' ? `<button class="btn-outline" onclick="downloadPDF('${escAttr(s.id)}','${escAttr(s.domain || '')}')"><i class="uil uil-file-download"></i> PDF</button>` : ''}
+                    <button class="btn-danger" onclick="confirmDelete('${escAttr(s.id)}')"><i class="uil uil-trash"></i></button>
                 </div>
             </div>`).join('');
         } catch (e) { el.innerHTML = '<div class="empty-state">Failed to load history.</div>'; }

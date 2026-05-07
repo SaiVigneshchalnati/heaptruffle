@@ -10,8 +10,26 @@ const { generateSecurityReport } = require('../services/aiService');
 const { generatePDFReport } = require('../services/pdfService');
 const { isAuthorizedDomain } = require('./targetsController');
 
+// Fix #5: Concurrent scan limit — prevent OOM crashes from simultaneous scans
+let activeScanCount = 0;
+const MAX_CONCURRENT_SCANS = 2;
+
+// Fix #6: SSRF protection — block private/internal addresses
+const PRIVATE_IP_RE = /^(localhost|127\.|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|\[::1\])/i;
+
+function isPrivateHost(hostname) {
+    return PRIVATE_IP_RE.test(hostname);
+}
+
 /* ─── POST /api/scan ─────────────────────────── */
 async function startScan(req, res) {
+    // Fix #5: Reject if too many scans are already running
+    if (activeScanCount >= MAX_CONCURRENT_SCANS) {
+        return res.status(429).json({
+            error: `Too many concurrent scans (max ${MAX_CONCURRENT_SCANS}). Please wait for an active scan to finish.`
+        });
+    }
+
     let { url } = req.body;
     if (!url || typeof url !== 'string')
         return res.status(400).json({ error: 'A valid URL is required.' });
@@ -20,6 +38,11 @@ async function startScan(req, res) {
     let domain;
     try { domain = new URL(url).hostname; }
     catch (_) { return res.status(400).json({ error: 'Invalid URL format.' }); }
+
+    // Fix #6: Block SSRF attempts to internal/private network addresses
+    if (isPrivateHost(domain)) {
+        return res.status(400).json({ error: 'Scanning internal or private network addresses is not permitted.' });
+    }
 
     if (!isAuthorizedDomain(domain))
         return res.status(403).json({ error: `Domain "${domain}" is not in the authorized target list. Add it first.` });
@@ -33,8 +56,12 @@ async function startScan(req, res) {
     db.prepare(`INSERT INTO audit_logs (action,user_id,detail,timestamp) VALUES (?,?,?,?)`)
       .run('SCAN_STARTED', userId, `Scan ${scanId} started for ${domain}`, createdAt);
 
+    activeScanCount++;
+    let scanResult;
+    try {
     // ── captureArtifacts NEVER throws — it always returns a result with heapStatus ──
     const { snapshotText, heapStatus, runtimeArtifacts } = await captureArtifacts(url);
+    scanResult = { snapshotText, heapStatus, runtimeArtifacts };
 
     // Describe what happened with the heap
     const heapStatusMessages = {
@@ -127,16 +154,24 @@ async function startScan(req, res) {
             localStorageKeyCount:  runtimeArtifacts.localStorageKeys.length,
         },
     });
+    } finally {
+        activeScanCount--; // Fix #5: Always release the slot
+    }
 }
 
 /* ─── GET /api/scans ─────────────────────────── */
 function getScans(req, res) {
     const limit  = Math.min(parseInt(req.query.limit)  || 20, 100);
     const offset = parseInt(req.query.offset) || 0;
-    const scans = db.prepare(`
-        SELECT * FROM scan_jobs ORDER BY created_at DESC LIMIT ? OFFSET ?
-    `).all(limit, offset);
-    const total = db.prepare(`SELECT COUNT(*) as c FROM scan_jobs`).get().c;
+    const isAdmin = req.user.role === 'admin';
+
+    // Fix #16: Non-admin users only see their own scans
+    const scans = isAdmin
+        ? db.prepare(`SELECT * FROM scan_jobs ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(limit, offset)
+        : db.prepare(`SELECT * FROM scan_jobs WHERE created_by=? ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(req.user.id, limit, offset);
+    const total = isAdmin
+        ? db.prepare(`SELECT COUNT(*) as c FROM scan_jobs`).get().c
+        : db.prepare(`SELECT COUNT(*) as c FROM scan_jobs WHERE created_by=?`).get(req.user.id).c;
     res.json({ scans, total });
 }
 
@@ -152,7 +187,7 @@ function getScanById(req, res) {
 /* ─── DELETE /api/scans/:id ──────────────────── */
 function deleteScan(req, res) {
     const scan = db.prepare(`SELECT id FROM scan_jobs WHERE id=?`).get(req.params.id);
-    if (!scan) return res.status(404).json({ error: 'Scan not found.' });;
+    if (!scan) return res.status(404).json({ error: 'Scan not found.' }); // Fix #9: removed double semicolon
     db.prepare(`DELETE FROM scan_jobs WHERE id=?`).run(req.params.id);
     db.prepare(`INSERT INTO audit_logs (action,user_id,detail,timestamp) VALUES (?,?,?,?)`)
       .run('SCAN_DELETED', req.user?.id, `Scan ${req.params.id} deleted`, new Date().toISOString());

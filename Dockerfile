@@ -1,4 +1,4 @@
-# HeapTruffle v2 — AI-Assisted Browser Memory Forensics Platform
+# HeapTruffle v3 — AI-Assisted Browser Memory Forensics Platform
 FROM node:18-bullseye
 
 # Install Google Chrome stable
@@ -17,7 +17,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm install --omit=dev
 
 # Copy source files
 COPY server.js ./
@@ -27,8 +27,13 @@ COPY public/ ./public/
 # Create data directory for SQLite database
 RUN mkdir -p /app/data
 
-# Copy environment template
-COPY .env.example ./.env
+# Fix #18: Do NOT copy .env.example as .env — secrets must be injected at runtime.
+# Required environment variables (pass with -e or --env-file):
+#   JWT_SECRET=<long-random-string>   (REQUIRED)
+#   GEMINI_API_KEY=<your-key>         (optional, enables AI reports)
+#   PORT=3000                         (optional, default 3000)
+#   NODE_ENV=production               (recommended)
+#   CORS_ORIGIN=https://yourdomain.com (recommended in production)
 
 EXPOSE 3000
 
@@ -38,3 +43,4 @@ RUN groupadd -r heaptruffle && useradd -r -g heaptruffle -G audio,video heaptruf
 USER heaptruffle
 
 ENTRYPOINT ["node", "server.js"]
+

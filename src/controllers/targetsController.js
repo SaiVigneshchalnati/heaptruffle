@@ -57,7 +57,9 @@ function toggleTarget(req, res) {
  */
 function isAuthorizedDomain(domain) {
     const count = db.prepare(`SELECT COUNT(*) as c FROM targets`).get().c;
-    if (count === 0) return true; // open mode
+    // Fix #12: Open mode must be explicitly enabled via env var — never auto-open if targets are empty
+    if (count === 0 && process.env.ALLOW_OPEN_SCANNING === 'true') return true;
+    if (count === 0) return false; // locked by default — require at least one target
     const found = db.prepare(`SELECT id FROM targets WHERE domain = ? AND is_active = 1`).get(domain);
     return !!found;
 }

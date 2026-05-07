@@ -46,6 +46,11 @@ async function register(req, res) {
         return res.status(400).json({ error: 'Username, email, and password are required.' });
     }
 
+    // Fix #11: Enforce minimum password length
+    if (password.length < 8) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+    }
+
     const allowedRoles = ['admin', 'analyst', 'viewer'];
     const userRole = allowedRoles.includes(role) ? role : 'analyst';
 
@@ -73,6 +78,22 @@ function getProfile(req, res) {
 }
 
 /**
+ * POST /api/auth/refresh  — Fix #15: Renew JWT token without re-login
+ * The user must already be authenticated. Issues a fresh 24h token.
+ */
+function refreshToken(req, res) {
+    const user = db.prepare(`SELECT id, username, email, role FROM users WHERE id = ?`).get(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+
+    const token = jwt.sign(
+        { id: user.id, username: user.username, role: user.role, email: user.email },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+    );
+    return res.json({ token, user: { id: user.id, username: user.username, email: user.email, role: user.role } });
+}
+
+/**
  * GET /api/auth/users  (Admin only)
  */
 function getUsers(req, res) {
@@ -86,8 +107,16 @@ function getUsers(req, res) {
 function deleteUser(req, res) {
     const { id } = req.params;
     if (id === req.user.id) return res.status(400).json({ error: 'Cannot delete your own account.' });
+
+    // Fix #4: Verify user exists before deleting
+    const user = db.prepare(`SELECT id, username FROM users WHERE id = ?`).get(id);
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+
     db.prepare(`DELETE FROM users WHERE id = ?`).run(id);
+    db.prepare(`INSERT INTO audit_logs (action, user_id, detail, timestamp) VALUES (?,?,?,?)`)
+      .run('USER_DELETED', req.user.id, `User ${user.username} deleted`, new Date().toISOString());
     res.json({ success: true });
 }
 
-module.exports = { login, register, getProfile, getUsers, deleteUser };
+module.exports = { login, register, getProfile, getUsers, deleteUser, refreshToken };
+

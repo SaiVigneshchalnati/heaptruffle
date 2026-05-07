@@ -1,12 +1,30 @@
 /**
  * api.js — Unified API gateway with all routes wired.
  */
-const express = require('express');
-const router  = express.Router();
+const express    = require('express');
+const rateLimit  = require('express-rate-limit');
+const router     = express.Router();
 const { requireAuth, requireRole } = require('../middleware/authMiddleware');
 
+// ─── Rate Limiters ────────────────────────────────────────────
+// Fix #3: Brute-force protection — 10 login attempts per 15 min per IP
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+});
+
+// Scan limiter — 5 scans per 10 min per IP (prevents abuse)
+const scanLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 5,
+    message: { error: 'Too many scan requests. Please wait before scanning again.' },
+});
+
 // ─── Controllers ──────────────────────────────────────────────
-const { login, register, getProfile, getUsers, deleteUser } = require('../controllers/authController');
+const { login, register, getProfile, getUsers, deleteUser, refreshToken } = require('../controllers/authController');
 const { getTargets, addTarget, deleteTarget, toggleTarget }   = require('../controllers/targetsController');
 const {
     startScan, getScans, getScanById, deleteScan,
@@ -21,11 +39,12 @@ router.get('/health', (req, res) => res.json({
 }));
 
 // ─── Auth (public) ────────────────────────────────────────────
-router.post('/auth/login', login);
+router.post('/auth/login',   loginLimiter, login);
 
 // ─── Auth (protected) ─────────────────────────────────────────
 router.post  ('/auth/register',     requireAuth, requireRole('admin'), register);
 router.get   ('/auth/me',           requireAuth, getProfile);
+router.post  ('/auth/refresh',      requireAuth, refreshToken);   // Fix #15: token refresh
 router.get   ('/auth/users',        requireAuth, requireRole('admin'), getUsers);
 router.delete('/auth/users/:id',    requireAuth, requireRole('admin'), deleteUser);
 
@@ -36,7 +55,7 @@ router.delete('/targets/:id',       requireAuth, requireRole('admin'), deleteTar
 router.patch ('/targets/:id/toggle',requireAuth, requireRole('admin'), toggleTarget);
 
 // ─── Scans ────────────────────────────────────────────────────
-router.post  ('/scan',              requireAuth, requireRole('admin','analyst'), startScan);
+router.post  ('/scan',              requireAuth, requireRole('admin','analyst'), scanLimiter, startScan);
 router.get   ('/scans',             requireAuth, getScans);
 router.get   ('/scans/compare',     requireAuth, compareScans);
 router.get   ('/scans/:id',         requireAuth, getScanById);
@@ -50,3 +69,4 @@ router.get('/dashboard',            requireAuth, getDashboardStats);
 router.get('/audit-logs',           requireAuth, requireRole('admin'), getAuditLogs);
 
 module.exports = router;
+

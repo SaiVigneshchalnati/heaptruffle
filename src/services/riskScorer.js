@@ -10,7 +10,7 @@ const SEVERITY_ORDER = ['low', 'medium', 'high', 'critical'];
  * @param {Array} findings - Raw findings from detectors
  * @returns {Array} - Findings with final_score and risk_label
  */
-function scoreFIndings(findings) {
+function scoreFindings(findings) {
     return findings.map(f => {
         let score = f.score;
 
@@ -59,4 +59,4 @@ function scoreToLabel(score) {
     return 'low';
 }
 
-module.exports = { scoreFIndings, aggregateStats, scoreToLabel };
+module.exports = { scoreFindings, aggregateStats, scoreToLabel };

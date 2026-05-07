@@ -58,7 +58,32 @@
         .spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);
             border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px;}
         @keyframes spin{to{transform:rotate(360deg);}}
+
+        /* ── Responsive ── */
+        @media (max-width: 480px) {
+            .login-card {
+                padding: 2rem 1.4rem;
+                border-radius: 20px;
+                margin: 0.75rem;
+                max-width: 100%;
+            }
+            .brand-logo { font-size: 1.7rem; }
+            .glow-1 { width: 320px; height: 320px; }
+            .glow-2 { width: 280px; height: 280px; }
+        }
+        @media (max-width: 380px) {
+            .login-card { padding: 1.75rem 1.1rem; margin: 0.5rem; }
+            .brand-logo { font-size: 1.5rem; }
+            input { font-size: 0.88rem; }
+            .btn-login { font-size: 0.92rem; padding: 0.85rem; }
+        }
+        @media (max-height: 600px) and (orientation: landscape) {
+            body { align-items: flex-start; padding: 1rem; overflow-y: auto; }
+            .login-card { margin: 0 auto; }
+            .brand { margin-bottom: 1.25rem; }
+        }
     </style>
+
 </head>
 <body>
     <div class="bg-glow glow-1"></div>

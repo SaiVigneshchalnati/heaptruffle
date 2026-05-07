@@ -3,7 +3,13 @@
  */
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'heaptruffle-secret-key-2024';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('\n❌  FATAL: JWT_SECRET environment variable is not set!');
+    console.error('   Add JWT_SECRET=<a-long-random-string> to your .env file.\n');
+    process.exit(1);
+}
+
 
 /**
  * Verifies JWT from Authorization header. Attaches req.user on success.
